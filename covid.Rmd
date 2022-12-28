@@ -2,7 +2,7 @@
 
 #loading necessary libraries for this project
 
-library(readxl) #for impoorting excel files
+library(readxl) #for importing excel files
 library(sf) #library for spatial objects
 library(here) #library for finding the data in the relevant directory
 library(tidyverse) #library for modifying columns and adding new ones
