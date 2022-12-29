@@ -1,41 +1,69 @@
+
+
+## COVID-19 Death Rate Disparity of Ethnic Groups Across England and Wales
+
 ```{r}
 
 #loading necessary libraries for this project
 
-library(readxl) #for importing excel files
-library(sf) #library for spatial objects
-library(here) #library for finding the data in the relevant directory
+##importing data and wrangling
+
+library(readxl) #excel file importing
+library(sf) #spatial objects
+library(here) #the data in the relevant directory
 library(tidyverse) #library for modifying columns and adding new ones
-library(tmap) #library for plotting and mapping
-library(tmaptools) #library for plotting and mapping
 library(janitor) #library for rearranging the columns of the dataset
-library(ggplot2) #library for data visualisation
 library(units) #library for new units, class and numeric data 
 library(reshape2) #library for transforming the data
-library(car) #library for regression methods
+
+##data visualisation
+
+library(tmap) #library for plotting and mapping
+library(tmaptools) #library for plotting and mapping
+library(ggplot2) #library for data visualisation
+library(vip) #library for creating feature importance graphs
+
+##data analysis
+library(car) #regression
 library(broom) #library for tidying statistical models
 library(spdep) #library for spatial dependence
 library(spgwr) #library for geographically weighted regression
-library(caret) #library for cross-validation, etc.
-library(vip) #library for creating feature importance graphs
 library(spatialreg) #library for spatial lag and error models
 
 
 ```
 
+### 1. Data Importing and Wrangling
+
+#### 1.1. Administrative Spatial Data: Lower Tier Local Authority Boundaries in the UK (2021)
+
 ```{r}
+
+
+#import local authority shapefile
 
 
 local <- st_read(here::here("data2",
                              "Local_Authority_Districts_(December_2021)_GB_BUC",
                              "Local_Authority_Districts_(December_2021)_GB_BUC.shp")) %>%
   
-  #clean names
+  ##rearrange the column names
+  
   clean_names() %>%
+  
+  ##select local authorities of England and Wales
+  
+  dplyr::filter(substr(lad21cd, 1, 1) == "E" |  substr(lad21cd, 1, 1) == "W") %>%
+  
+  ##select only necessary columns (local authority code, name and geometry)
+
   
   dplyr::select(c("lad21cd", 
                   "lad21nm",
                   "geometry")) %>%
+  
+  #standardise the la authority column name
+  
   rename(la_code = lad21cd)
   
 
@@ -45,46 +73,69 @@ local <- st_read(here::here("data2",
 
 ```
 
+#### 1.2. Dependent Variable: COVID-19 Deaths per 100.000 people in 2022
 
 ```{r}
+
+#import covid19 deaths csv file
 
 covid <-read.csv(here::here("data2",
                              "ltla_2022-12-22.csv"),
                 na = " ") %>%
-  clean_names() 
+  
+  ##rearrange the colum names
+  
+  clean_names()
 
-covid_g<- covid %>%
+#grouping the weekly data to have average deaths per 100.000 in 2022
+
+covid1_group<- covid %>%
   group_by(area_code)%>%
-  summarise(deaths_per = mean(cum_ons_deaths_by_registration_date_rate))
+  summarise(deaths_per = mean(cum_ons_deaths_by_registration_date_rate)) %>%
+  
+  rename(la_code = area_code)
   
 
 
 ```
 
+
+#### 1.3. Population Data of Ethnic Groups
+
+
 ```{r}
 
 
-#importing the csv file and dealing with missing values 
+#importing the ethnic population csv data
 
 ethnic <-read_excel(here::here("data2",
                              "datadownload.xlsx"),
                 sheet = "Figure 3",
                 skip = 4,
                 na = " ") %>%
+  
+  ##rearrange the colum names
+  
   clean_names()
   
+#grouping ethnic groups into five:asian, black, mixed, white and other ethnic groups
+
+##asian
 
 ethnic$asian = ethnic$asian_asian_british_or_asian_welsh_bangladeshi_percent + ethnic$asian_asian_british_or_asian_welsh_chinese_percent + ethnic$asian_asian_british_or_asian_welsh_indian_percent + ethnic$asian_asian_british_or_asian_welsh_pakistani_percent + ethnic$asian_asian_british_or_asian_welsh_other_asian_percent
 
+##black
 
 ethnic$black = ethnic$black_black_british_black_welsh_caribbean_or_african_african_percent+ ethnic$black_black_british_black_welsh_caribbean_or_african_caribbean_percent + ethnic$black_black_british_black_welsh_caribbean_or_african_other_black_percent
 
-
+##mixed
 
 ethnic$mixed_multiple = ethnic$mixed_or_multiple_ethnic_groups_other_mixed_or_multiple_ethnic_groups_percent + ethnic$mixed_or_multiple_ethnic_groups_white_and_black_caribbean_percent + ethnic$mixed_or_multiple_ethnic_groups_white_and_asian_percent + ethnic$mixed_or_multiple_ethnic_groups_white_and_black_african_percent
 
-
+##white
 ethnic$white = ethnic$white_english_welsh_scottish_northern_irish_or_british_percent + ethnic$white_irish_percent + ethnic$white_gypsy_or_irish_traveller_percent + ethnic$white_roma_percent + ethnic$white_other_white_percent
+
+##other
 
 ethnic$other = ethnic$other_ethnic_group_any_other_ethnic_group_percent + ethnic$other_ethnic_group_arab_percent
 
@@ -96,85 +147,112 @@ ethnic$other = ethnic$other_ethnic_group_any_other_ethnic_group_percent + ethnic
                 "black",
                 "mixed_multiple",
                 "white",
-                "other")
+                "other") %>%
+   
+   rename(la_code = area_code)
 
 ```
+
+#### 1.4. Population Data of Ethnic Groups
 
 
 ```{r}
 
 
-#importing the csv file and dealing with missing values 
+#importing the population density csv data
 
 population_den<-read_excel(here::here("data2",
                              "datadownload2.xlsx"),
                 sheet = "Figure 6",
                 skip = 5,
                 na = " ") %>%
+  
+  #rearrange the column names
+  
   clean_names() %>%
   
-   dplyr::select("population_density_number_of_usual_residents_per_square_kilometre_2021",
+  #select necessary columns
+  
+  dplyr::select("population_density_number_of_usual_residents_per_square_kilometre_2021",
                  "la_code") %>%
-  rename(area_code =la_code,
-         pop_density = population_density_number_of_usual_residents_per_square_kilometre_2021)
+  
+  #rename the long colum name into mnemonic name
+  
+  rename(pop_density = population_density_number_of_usual_residents_per_square_kilometre_2021)
 
 
 ```
 
 
+#### 1.5. Population of people 65 or over
+
+
 ```{r}
 
-
-#importing the csv file and dealing with missing values 
+#importing the csv data
 
 population_65<-read_excel(here::here("data2",
                              "datadownload3.xlsx"),
                 sheet = "Figure 5",
                 skip = 5,
                 na = " ") %>%
+  
+  #rearrange the column names
+  
   clean_names() %>%
   
-   dplyr::select("aged_65_years_and_over_percent",
-                 "la_code") %>%
-  rename(area_code =la_code,
-         pop_65over_per = aged_65_years_and_over_percent)
-
-
-```
-
-
-
+  #select necessary columns
   
+  dplyr::select("aged_65_years_and_over_percent",
+                 "la_code") %>%
+  
+  #rename the long column into mnemonic name
+  
+  rename(pop_65over_per = aged_65_years_and_over_percent)
 
+
+```
 
 ```{r}
 
-local_covid <- local %>%
+covid2_la <- local %>%
   left_join(., 
-            covid_g, by=c("la_code"="area_code"))
+            covid1_group, by=c("la_code"="la_code"))
 
 
-local_covid <- local_covid %>%
+covid3_la<- covid2_la %>%
   left_join(., 
-            ethnic, by=c("la_code"="area_code"))
+            ethnic, by=c("la_code"="la_code"))
 
-local_covid <- local_covid %>%
+covid4_la <- covid3_la %>%
   left_join(., 
-          population_den, by=c("la_code"="area_code"))
+          population_den, by=c("la_code"="la_code"))
 
 
-local_covid <- local_covid %>%
+covid5_joined<- covid4_la %>%
   left_join(., 
-          population_65, by=c("la_code"="area_code"))
+          population_65, by=c("la_code"="la_code"))
 
 
 ```
 
 
-
 ```{r}
 
-local_covid2 <-local_covid %>%
+#mapping the covid-19 death rate across england
+
+tm_shape(covid5_joined) +
+  tm_fill("deaths_per",style="jenks", n= 5, palette = "YlGnBu", ,title= "Average Deaths per 100.000", labels=c("75 to 145", "146 to 189", "190 to 230", "231 to 275", "276 to 370"))  +
+  tm_borders(col = "#5f5a5a")+ 
+  tm_compass(north=0, position=c(0.80,0.01))+
+  tm_scale_bar(position = c(0.05,0))+
+  tm_layout(frame = FALSE,legend.position = c(0,0.80), legend.title.size = 0.7, legend.text.size = 0.55)
+
+
+```
+```{r}
+
+covid6_ultimate <-covid5_joined %>%
   
   dplyr::filter(deaths_per != 0)
 
@@ -183,36 +261,17 @@ local_covid2 <-local_covid %>%
 
 
 
-
-```{r}
-
-#mapping the average college percentage distribution
-
-tm_shape(local_covid2) +
-  tm_fill("deaths_per",style="jenks", n= 5, palette = "YlGnBu")  +
-
-  tm_borders(alpha = 0.2) +
-  tm_layout(" Map1: Average College Readiness Distribution",
-  frame = FALSE,
-  legend.title.size=0.6,
-  legend.text.size = 0.6,
-  legend.position = c("right","bottom")) +
-  tm_scale_bar(position = c("left", "bottom")) +
-  tm_compass(type = "arrow", position = c("right", "top"))
-
-```
-
 ```{r}
 
 #calculate the centroids
 
-coordsW <- local_covid2%>%
+centroids<- covid6_ultimate%>%
   st_centroid()%>%
   st_geometry()
 
 
 #find four nearest neighbours
-knn <-coordsW %>%
+knn <-centroids %>%
   knearneigh(., k=5)
 
 knn2 <- knn%>%
@@ -221,114 +280,321 @@ knn2 <- knn%>%
 knn3_weight <- knn2 %>%
   nb2listw(., style="W")
 
-moran.test(local_covid2$deaths_per, knn3_weight)
+moran.test(covid6_ultimate$deaths_per, knn3_weight)
 ```
-
-
 
 ```{r}
 
 
-local_neet_sp <- as_Spatial(local_covid2)
+covid6_ultimate_sp <- as_Spatial(covid6_ultimate)
 
-local_moran_density <- localmoran(local_neet_sp$deaths_per, knn3_weight)
+local_moran_density <- localmoran(covid6_ultimate_sp$deaths_per, knn3_weight)
 
 
 # rescale
 
-local_neet_sp$proportion_neet_or_not_known_scale <- scale(local_neet_sp$deaths_per)
+covid6_ultimate_sp$proportion_neet_or_not_known_scale <- scale(covid6_ultimate_sp$deaths_per)
 
 
 # create a spatial lag variable 
 
-local_neet_sp$proportion_neet_or_not_known_lag <- lag.listw(knn3_weight, local_neet_sp$proportion_neet_or_not_known_scale)
+covid6_ultimate_sp$proportion_neet_or_not_known_lag <- lag.listw(knn3_weight, covid6_ultimate_sp$proportion_neet_or_not_known_scale)
 
 # convert to sf
-local_neet_sf<- st_as_sf(local_neet_sp)
+covid6_ultimate_sf<- st_as_sf(covid6_ultimate_sp)
 
 
 # set a significance value
 sig_level <- 0.1
 
 # classification with significance value
-local_neet_sp$quad_sig <- ifelse(local_neet_sp$proportion_neet_or_not_known_lag> 0 & 
-                                          local_neet_sp$proportion_neet_or_not_known_scale> 0 & 
+covid6_ultimate_sp$quad_sig <- ifelse(covid6_ultimate_sp$proportion_neet_or_not_known_lag> 0 & 
+                                          covid6_ultimate_sp$proportion_neet_or_not_known_scale> 0 & 
                                           local_moran_density[,5] <= sig_level, 
-                                          'high-high', 
-                                   ifelse(local_neet_sp$proportion_neet_or_not_known_lag <= 0 & 
-                                          local_neet_sp$proportion_neet_or_not_known_scale <= 0 & 
+                                          'High-high (Hot spots)', 
+                                   ifelse(covid6_ultimate_sp$proportion_neet_or_not_known_lag <= 0 & 
+                                          covid6_ultimate_sp$proportion_neet_or_not_known_scale <= 0 & 
                                           local_moran_density[,5] <= sig_level, 
-                                          'low-low', 
-                                   ifelse(local_neet_sp$proportion_neet_or_not_known_lag > 0 & 
-                                          local_neet_sp$proportion_neet_or_not_known_scale <= 0 & 
+                                          'Low-Low (Cold Spots)', 
+                                   ifelse(covid6_ultimate_sp$proportion_neet_or_not_known_lag > 0 & 
+                                          covid6_ultimate_sp$proportion_neet_or_not_known_scale <= 0 & 
                                           local_moran_density[,5] <= sig_level, 
-                                          'high-low', 
-                                   ifelse(local_neet_sp$proportion_neet_or_not_known_lag <= 0 & 
-                                          local_neet_sp$proportion_neet_or_not_known_scale> 0 & 
+                                          'High-Low (Outlier)', 
+                                   ifelse(covid6_ultimate_sp$proportion_neet_or_not_known_lag <= 0 & 
+                                          covid6_ultimate_sp$proportion_neet_or_not_known_scale> 0 & 
                                           local_moran_density[,5] <= sig_level, 
-                                          'low-high',
+                                          'Low-High (Outlier)',
                                    ifelse(local_moran_density[,5] > sig_level, 
-                                          'not-significant', 
-                                          'not-significant')))))
+                                          'Not-significant', 
+                                          'Not-significant')))))
 
 
 
 
 ```
 
+```{r}
+
+
+covid6_ultimate_sf2<- st_as_sf(covid6_ultimate_sp)
+
+
+covid6_ultimate_sf2 <- covid6_ultimate_sf2 %>%
+  
+  dplyr::select("quad_sig",
+                "la_code")
+  
+
+covid6_ultimate_df<- as.data.frame(covid6_ultimate_sf2)
+
+
+covid5_joined <- covid5_joined %>%
+
+  left_join(.,
+            covid6_ultimate_df, by = c("la_code" = "la_code"))
+
+
+```
+
+
 
 ```{r}
+
+
+#mapping the covid-19 death rate across england
+
+map1_distribution <- tm_shape(covid5_joined) +
+  
+  tm_fill("deaths_per",
+          style="jenks",
+          n= 5, 
+          palette = "OrRd",
+          title= "Average Deaths per 100.000", 
+          labels=c("75 to 145", "146 to 189", "190 to 230", "231 to 275", "276 to 370"))  +
+  
+  tm_borders(lwd = 0.1)+
+  
+  tm_shape(covid5_joined)+
+  
+  tm_polygons(alpha=0) +
+  
+  tm_compass(north=0,
+             position=c(0.85,0.70))+
+  
+  tm_scale_bar(position = c(0.67,0.02)) +
+  
+tm_layout(legend.position = c(0.02,0.63),
+          legend.title.size = 0.7,
+          legend.text.size = 0.55) +
+  
+   tm_credits("(a)", position=c(0,0.88), size=1) 
+
 
 # map only the statistically significant results here
-tm_shape(local_neet_sp) +
-    tm_fill(col = 'quad_sig', palette = c("blue", "#fee0d2", "white"),title= "Clusters") +
-    tm_borders(col = "grey")+
-  tm_compass(north=0, position=c(0.85,0.80))+
-  tm_scale_bar(position = c("left", "bottom")) +
-tm_layout("Map2: Significant Clusters Across San Francisco",frame = FALSE,legend.position = c("left","bottom"), legend.title.size = 0.5, legend.text.size = 0.5)
+
+map2_hotspot <- tm_shape(covid5_joined) +
+    tm_fill(col = 'quad_sig', 
+            palette = c("#e34a33", "#fdbb84", "#2c7fb8", "white", "#bdd7e7"),
+            title= "Clusters") +
+    tm_borders(lwd = 0.1)+
+  
+tm_shape(covid5_joined)+
+  tm_polygons(alpha=0) +
+  
+  tm_compass(north=0, position=c(0.85,0.70))+
+  
+  tm_scale_bar(position = c(0.67,0.02)) +
+  
+tm_layout(legend.position = c(0.02,0.63), legend.title.size = 0.7, legend.text.size = 0.55)+
+  
+ tm_credits("(b)", position=c(0,0.88), size=1) 
+
+figure1=tmap_arrange(map1_distribution, map2_hotspot, ncol=2)
+
+
+figure1
+
+
+```
+
+```{r}
+
+#create a histogram of dependent variable
+
+hist_deaths<- ggplot(covid6_ultimate, aes(x=deaths_per)) + 
+  geom_histogram(binwidth = 10, color="white",fill="#e34a33", alpha=0.6)+
+  geom_vline(data=covid6_ultimate, aes(xintercept=mean(deaths_per)),
+             linetype="dashed", color="#045a8d")+
+  labs(title="COVID-19 Deaths",x="Deaths per 100.000 population", y = "Count", size=10)+
+  theme_classic()+
+  theme(axis.title.x = element_text(size = 9))+
+  theme(axis.title.y = element_text(size = 9))+
+  theme(plot.title = element_text(face = "bold"))+
+  theme(plot.title = element_text(size = 11))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+hist_asian<- ggplot(covid6_ultimate, aes(x=asian)) + 
+  
+  geom_histogram(binwidth = 2, color="white",fill="#69b3a2", alpha=0.6)+
+  geom_vline(data=covid6_ultimate, aes(xintercept=mean(asian)),
+             linetype="dashed", color="#045a8d")+
+  labs(title="Asian Population",x="Population Percentage", y = "Count")+
+  theme_classic()+
+  theme(axis.title.x = element_text(size = 9))+
+  theme(axis.title.y = element_text(size = 9))+
+  theme(plot.title = element_text(face = "bold"))+
+  theme(plot.title = element_text(size = 11))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+hist_black<- ggplot(covid6_ultimate, aes(x=black)) + 
+  geom_histogram(binwidth = 1, color="white",fill="#E69F00", alpha=0.6)+
+  geom_vline(data=covid6_ultimate, aes(xintercept=mean(black)),
+             linetype="dashed", color="#045a8d")+
+  labs(title="Black Population",x="Population Percentage", y = "Count")+
+  theme_classic()+
+  theme(axis.title.x = element_text(size = 9))+
+  theme(axis.title.y = element_text(size = 9))+
+  theme(plot.title = element_text(face = "bold"))+
+  theme(plot.title = element_text(size = 11))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+  
+hist_mixed<- ggplot(covid6_ultimate, aes(x=mixed_multiple)) + 
+  geom_histogram(binwidth = 0.3, color="white",fill="#56B4E9", alpha=0.6)+
+  geom_vline(data=covid6_ultimate, aes(xintercept=mean(mixed_multiple)),
+             linetype="dashed", color="#045a8d")+
+  labs(title="Mixed Population",x="Population Percentage", y = "Count")+
+  theme_classic()+
+  theme(axis.title.x = element_text(size = 9))+
+  theme(axis.title.y = element_text(size = 9))+
+  theme(plot.title = element_text(face = "bold"))+
+  theme(plot.title = element_text(size = 11))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+  
+  
+hist_white<- ggplot(covid6_ultimate, aes(x=white)) + 
+  geom_histogram(binwidth = 3, color="white",fill="#969696", alpha=0.6)+
+  geom_vline(data=covid6_ultimate, aes(xintercept=mean(white)),
+             linetype="dashed", color="#045a8d")+
+  labs(title="White Population",x="Population Percentage", y = "Count")+
+  theme_classic()+
+  theme(axis.title.x = element_text(size = 9))+
+  theme(axis.title.y = element_text(size = 9))+
+  theme(plot.title = element_text(face = "bold"))+
+  theme(plot.title = element_text(size = 11))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+hist_popden<- ggplot(covid6_ultimate, aes(x=pop_density)) + 
+  geom_histogram(binwidth = 500, color="white",fill="#fc8d59", alpha=0.6)+
+  geom_vline(data=covid6_ultimate, aes(xintercept=mean(pop_density)),
+             linetype="dashed", color="#045a8d")+
+  labs(title="Population Density",x="Population per kilometer", y = "Count")+
+  theme_classic()+
+  theme(axis.title.x = element_text(size = 9))+
+  theme(axis.title.y = element_text(size = 9))+
+  theme(plot.title = element_text(face = "bold"))+
+  theme(plot.title = element_text(size = 11))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+hist_pop65<- ggplot(covid6_ultimate, aes(x=pop_65over_per)) + 
+  geom_histogram(binwidth = 1, color="white",fill="#404080", alpha=0.6)+
+  geom_vline(data=covid6_ultimate, aes(xintercept=mean(pop_65over_per)),
+             linetype="dashed", color="#045a8d")+
+  labs(title="65+ Percentage ",x="Population Percentage", y = "Count")+
+  theme_classic()+
+  theme(axis.title.x = element_text(size = 9))+
+  theme(axis.title.y = element_text(size = 9))+
+  theme(plot.title = element_text(face = "bold"))+
+  theme(plot.title = element_text(size = 11))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+grid.arrange(hist_deaths,hist_pop65, hist_asian,hist_black, hist_mixed, hist_white, hist_popden,
+          ncol = 3, nrow = 3)
+
+```
+
+```{r}
+
+shapiro.test(covid6_ultimate$deaths_per)
 
 
 ```
 
 
+#### Correlation Map
 
+\*\*Correlation map code was adapted from Geeks for Geeks retrieved from
+<https://www.geeksforgeeks.org/how-to-create-correlation-heatmap-in-r/>
+
+https://stackoverflow.com/questions/63459483/customized-correlation-plot-color
+
+Correlation map is created to understand the correlation between the
+variable since it can affect our model.
 
 ```{r}
 
+#remove the colums that we dont need in correlation map
+
+corr <- covid6_ultimate%>%
+    st_drop_geometry() %>%
+    dplyr::select("deaths_per",
+                  "asian",
+                  "black",
+                  "white",
+                  "mixed_multiple",
+                  "other",
+                  "pop_density",
+                  "pop_65over_per") %>%
+  
+  rename("Covid19 Deaths" = deaths_per,
+         "Asian %" = asian,
+         "Black %"= black,
+         "White %" = white,
+         "Mixed %" = mixed_multiple,
+         "Other %" =other,
+         "Population Density" = pop_density,
+         "65+ %" = pop_65over_per)
+         
 
 
-#create a histogram of independent variable
+# creating correlation matrix
+corr_mat <- round(cor(corr),2)
+ 
+# reduce the size of correlation matrix
+melted_corr_mat <- melt(corr_mat)
+head(melted_corr_mat)
+ 
+# plotting the correlation heatmap
+ggplot(data = melted_corr_mat, aes(x=Var1, y=Var2,fill=value)) +
+geom_tile() +
+  
+  geom_text(aes(label = value))+
+  labs(x = "", y = "", fill = "Corr", title = "Correlation Matrix") +
+  coord_fixed() +
+  theme_minimal() +
+  scale_fill_gradientn(
+        limits = c(-1,1),
 
-hist_density<- ggplot(local_covid2, aes(x=deaths_per)) + 
-  geom_histogram(binwidth = 10, color = "white",fill="purple")
+        # here choose the colours you want
+        colours = c("#6D9EC1", "white", "#E46726"), 
 
-hist_density
-
+        # here choose the intervals you want (must be inside rescale!)
+        values = scales::rescale(c(-1, -0.50, -0.75, 0, 0.5, 0.75, 1)))
 ```
-```{r}
 
-shapiro.test(local_covid2$deaths_per)
-
-
-```
-```{r}
-
-
-
-#create a histogram of independent variable
-
-hist_density<- ggplot(local_covid2, aes(x=pop_65over_per)) + 
-  geom_histogram(binwidth = 1, color = "white",fill="purple")
-
-hist_density
-
-```
 
 
 ```{r}
 
-lr_model <- lm(local_covid2$deaths_per ~ 
-     log(local_covid2$asian) + local_covid2$black + log(local_covid2$mixed_multiple) +log(local_covid2$white) +log(local_covid2$other) + log(local_covid2$pop_density) + local_covid2$pop_65over_per,data=local_covid2)
+lr_model <- lm(covid6_ultimate$deaths_per ~ 
+     log(covid6_ultimate$asian) + covid6_ultimate$black + log(covid6_ultimate$mixed_multiple) +log(covid6_ultimate$white)+ log(covid6_ultimate$pop_density) + covid6_ultimate$pop_65over_per,data=covid6_ultimate)
 
 ```
 
@@ -338,14 +604,19 @@ summary(lr_model)
 
 
 ```
+```{r}
+
+vif(lr_model)
+
+```
 
 
 ```{r}
 
 model_data <- lr_model %>%
-  broom::augment(., local_covid2)
+  broom::augment(., covid6_ultimate)
 
-local_covid3<- model_data %>%
+covid7_ultimate_lr<- model_data %>%
   mutate(model2resids = residuals(lr_model))
 
 model_data%>%
@@ -355,21 +626,19 @@ dplyr::select(.resid)%>%
   geom_histogram()
 ```
 
-
 ```{r}
 
-shapiro.test(local_covid3$model2resids)
+shapiro.test(covid7_ultimate_lr$model2resids)
 
 
 ```
 
-
 ```{r}
 
-local_covid3_sf <- st_as_sf(local_covid3)
+covid7_ultimate_lr <- st_as_sf(covid7_ultimate_lr)
 
 
-tm_shape(local_covid3_sf) +
+tm_shape(covid7_ultimate_lr) +
   tm_fill("model2resids", style = "jenks", midpoint = 0, palette = "-RdBu",title= "Residuals") +
 tm_compass(north=0, position=c(0.85,0.80))+
 tm_scale_bar(position = c("left", "bottom")) +
@@ -377,22 +646,19 @@ tm_layout("Map2: The LR Residuals Across Chicago",frame = FALSE,legend.position 
 
 ```
 
-
-
 ```{r}
 
 #apply global moran's I
 
-  moran.test(local_covid3_sf$model2resids, knn3_weight)
+  moran.test(covid7_ultimate_lr$model2resids, knn3_weight)
 
 
 ```
 
-
 ```{r}
 
-modelSER <- errorsarlm(log(local_covid2$deaths_per) ~ 
-     log(local_covid2$asian) + local_covid2$black + log(local_covid2$mixed_multiple) +log(local_covid2$white) +log(local_covid2$other) + log(local_covid2$pop_density) + local_covid2$pop_65over_per,data=local_covid2,
+modelSER <- errorsarlm(covid6_ultimate$deaths_per ~ 
+     log(covid6_ultimate$asian) + covid6_ultimate$black + log(covid6_ultimate$mixed_multiple) +log(covid6_ultimate$white) +log(covid6_ultimate$other),data=covid6_ultimate,
   knn3_weight, 
   method = "eigen")
 
@@ -400,12 +666,10 @@ summary(modelSER)
 
 ```
 
-
-
 ```{r}
 
-modelSER_result <- local_covid3
-
+modelSER_result <- covid6_ultimate
+  
 # extract the residuals
 
 modelSER_result$RESID_SER <- modelSER$residuals
@@ -419,44 +683,35 @@ moran.test(modelSER_result$RESID_SER, knn3_weight)
 
 ```
 
-
-
-
 ```{r}
 
 # insert coordinates into a dataframe
 
-join6_cent <- st_centroid(local_covid3_sf)
+covid8_ultimate_cent <- st_centroid(covid7_ultimate_lr)
 
-join6_cent<- cbind(join6_cent, st_coordinates(join6_cent))
+covid8_ultimate_cent<- cbind(covid8_ultimate_cent, st_coordinates(covid8_ultimate_cent))
 
 ```
-
-
 
 ```{r}
 
 # finding the bandwidth 
 
-BwG <- gwr.sel(local_covid2$deaths_per ~ 
-     log(local_covid2$asian) + local_covid2$black + log(local_covid2$mixed_multiple) +log(local_covid2$white) +log(local_covid2$other) + log(local_covid2$pop_density) + local_covid2$pop_65over_per,data=local_covid2, coords = cbind(join6_cent$X, join6_cent$Y), adapt = TRUE)
+BwG <- gwr.sel(covid6_ultimate$deaths_per ~ 
+     log(covid6_ultimate$asian) + covid6_ultimate$black + log(covid6_ultimate$mixed_multiple) +log(covid6_ultimate$white) +log(covid6_ultimate$other),data=covid6_ultimate, coords = cbind(covid8_ultimate_cent$X, covid8_ultimate_cent$Y), adapt = TRUE)
 
 # see optimal bandwidth
 
 BwG
 ```
 
-
-
-
-
 ```{r}
 
 
 # fitting gwr model
 
-gwr.model <- gwr(local_covid2$deaths_per ~ 
-     log(local_covid2$asian) + local_covid2$black + log(local_covid2$mixed_multiple) +log(local_covid2$white) +log(local_covid2$other) + log(local_covid2$pop_density) + local_covid2$pop_65over_per,data=local_covid2, coords = cbind(join6_cent$X, join6_cent$Y), adapt=BwG, hatmatrix=TRUE, se.fit=TRUE)
+gwr.model <- gwr(covid6_ultimate$deaths_per ~ 
+     log(covid6_ultimate$asian) + covid6_ultimate$black + log(covid6_ultimate$mixed_multiple) +log(covid6_ultimate$white) +log(covid6_ultimate$other) + log(covid6_ultimate$pop_density) + covid6_ultimate$pop_65over_per, data=covid6_ultimate, coords = cbind(covid8_ultimate_cent$X, covid8_ultimate_cent$Y), adapt=BwG, hatmatrix=TRUE, se.fit=TRUE)
 
 
 ```
@@ -475,39 +730,36 @@ gwr.data <- as.data.frame(gwr.model$SDF)
 
 ```{r}
 
-gwr_result <- local_covid2
+gwr_result <- covid6_ultimate
 
 # insert coefficients into our spatial result data
 
-gwr_result$Coefasian <- gwr.data[,"log.local_covid2.asian."]
-gwr_result$Coefblack <- gwr.data[,"local_covid2.black"]
-gwr_result$Coefmix_multiple <- gwr.data[,"log.local_covid2.mixed_multiple."]
-gwr_result$Coefwhite <- gwr.data[,"log.local_covid2.white."]
-gwr_result$Coefother <- gwr.data[,"log.local_covid2.other."]
+gwr_result$Coefasian <- gwr.data[,"log.covid6_ultimate.asian."]
+gwr_result$Coefblack <- gwr.data[,"covid6_ultimate.black"]
+gwr_result$Coefmix_multiple <- gwr.data[,"log.covid6_ultimate.mixed_multiple."]
+gwr_result$Coefwhite <- gwr.data[,"log.covid6_ultimate.white."]
+gwr_result$Coefother <- gwr.data[,"log.covid6_ultimate.other."]
 
-gwr_result$Coefpop_density <- gwr.data[,"log.local_covid2.pop_density."]
-gwr_result$Coefpop_65over_per <- gwr.data[,"local_covid2.pop_65over_per"]
+gwr_result$Coefpop_density <- gwr.data[,"log.covid6_ultimate.pop_density."]
+gwr_result$Coefpop_65over_per <- gwr.data[,"covid6_ultimate.pop_65over_per"]
 
 
 
 # insert standard errors into our spatial result data
 
-gwr_result$SEasian <- gwr.data[,"log.local_covid2.asian._se"]
-gwr_result$SEblack <- gwr.data[,"local_covid2.black_se"]
-gwr_result$SEmix_multiple <- gwr.data[,"log.local_covid2.mixed_multiple._se"]
-gwr_result$SEwhite <- gwr.data[,"log.local_covid2.white._se"]
-gwr_result$SEother <- gwr.data[,"log.local_covid2.other._se"]
+gwr_result$SEasian <- gwr.data[,"log.covid6_ultimate.asian._se"]
+gwr_result$SEblack <- gwr.data[,"covid6_ultimate.black_se"]
+gwr_result$SEmix_multiple <- gwr.data[,"log.covid6_ultimate.mixed_multiple._se"]
+gwr_result$SEwhite <- gwr.data[,"log.covid6_ultimate.white._se"]
+gwr_result$SEother <- gwr.data[,"log.covid6_ultimate.other._se"]
 
-gwr_result$SEpop_density <- gwr.data[,"log.local_covid2.pop_density._se"]
-gwr_result$SEpop_65over_per <- gwr.data[,"local_covid2.pop_65over_per_se"]
+gwr_result$SEpop_density <- gwr.data[,"log.covid6_ultimate.pop_density._se"]
+gwr_result$SEpop_65over_per <- gwr.data[,"covid6_ultimate.pop_65over_per_se"]
 
 # insert localR2 estimates into our spatial result data
 
 gwr_result$localR2 <- gwr.data[,"localR2"]
 ```
-
-
-
 
 ```{r}
 
@@ -522,9 +774,6 @@ tm_layout("Map4: The Local R2 OF GWR Across Chicago",frame = FALSE,legend.positi
 
 
 ```
-
-
-
 
 ```{r}
 
@@ -593,16 +842,12 @@ tm7<- tm_shape(gwr_result) +
     tm_scale_bar(position = c("right", "bottom")) 
 
 
-t=tmap_arrange(tm1, tm2, tm3, tm4, tm5, tm6, tm7, ncol=2)
+t=tmap_arrange(tm1, tm2, tm3, tm4, tm5, ncol=2)
 
 
 t
 
 ```
-
-
-
-
 
 ```{r}
 
@@ -670,12 +915,6 @@ gwr_result$significant_population_65over <- cut(gwr_result$tstat_population_65ov
 
 ```
 
-
-
-
-
-
-
 ```{r}
 
 #mapping the significance levels of variables
@@ -687,7 +926,7 @@ tmap_mode("plot")
 
 tm5 <-  tm_shape(gwr_result) + 
   tm_fill("significant_asian", title = "", style = "cat", labels=c("Reduction: Significant", "Not Significant", "Increase: Significant"), palette = c("red", "white", "blue")) +
-  tm_shape(local_covid2) + 
+  tm_shape(covid6_ultimate) + 
   tm_polygons(alpha = 0, border.alpha = 0.4, border.col = "black") +
   tm_layout(frame=FALSE, legend.position = c("left","bottom"),  legend.title.size=0.7,   legend.text.size = 0.6, title= 'Map6: Significance in Local Coefficients of GWR', title.position = c(0,0.96))+
   tm_credits("(a) Total Population (log)", position=c(0,0.75), size=1)
@@ -695,7 +934,7 @@ tm5 <-  tm_shape(gwr_result) +
 
 tm6 <-  tm_shape(gwr_result) + 
   tm_fill("significant_black", title = "", style = "cat", labels=c("Reduction: Significant", "Not Significant", "Increase: Significant"), palette = c("red", "white", "blue")) +
-  tm_shape(local_covid2) + 
+  tm_shape(covid6_ultimate) + 
   tm_polygons(alpha = 0, border.alpha = 0.4, border.col = "black") +
 
   tm_layout(frame=FALSE, legend.position = c("left","bottom"),  legend.title.size=0.7,   legend.text.size = 0.6)+
@@ -707,7 +946,7 @@ tm6 <-  tm_shape(gwr_result) +
 
 tm7 <- tm_shape(gwr_result) + 
   tm_fill("significant_mixed", title = "", style = "cat", labels=c("Reduction: Significant", "Not Significant", "Increase: Significant"), palette = c("red", "white", "blue")) +
-  tm_shape(local_covid2) + 
+  tm_shape(covid6_ultimate) + 
   tm_polygons(alpha = 0, border.alpha = 0.4, border.col = "black") +
   tm_layout(frame=FALSE, legend.position = c("left","bottom"),  legend.title.size=0.7,   legend.text.size = 0.6)+
   tm_credits("(c) 15-19 Age Population Percentage", position=c(0,0.75), size=1)
@@ -715,14 +954,22 @@ tm7 <- tm_shape(gwr_result) +
 
 tm8 <-  tm_shape(gwr_result) + 
   tm_fill("significant_white", title = "", style = "cat", labels=c("Reduction: Significant", "Not Significant", "Increase: Significant"), palette = c("red", "white", "blue")) +
-  tm_shape(local_covid2) + 
+  tm_shape(covid6_ultimate) + 
   tm_polygons(alpha = 0, border.alpha = 0.4, border.col = "black") +
   tm_layout(frame=FALSE, legend.position = c("left","bottom"),  legend.title.size=0.7,   legend.text.size = 0.6)+
   tm_credits("(d) People under 18 with poverty status", position=c(0,0.75), size=1) +
   tm_scale_bar(position = c("right", "bottom")) 
 
 
-t_sig=tmap_arrange(tm5, tm6, tm7, tm8, ncol=2)
+tm9 <-  tm_shape(gwr_result) + 
+  tm_fill("significant_other", title = "", style = "cat", labels=c("Reduction: Significant", "Not Significant", "Increase: Significant"), palette = c("red", "white", "blue")) +
+  tm_shape(covid6_ultimate) + 
+  tm_polygons(alpha = 0, border.alpha = 0.4, border.col = "black") +
+  tm_layout(frame=FALSE, legend.position = c("left","bottom"),  legend.title.size=0.7,   legend.text.size = 0.6)+
+  tm_credits("(d) People under 18 with poverty status", position=c(0,0.75), size=1) +
+  tm_scale_bar(position = c("right", "bottom")) 
+
+t_sig=tmap_arrange(tm5, tm6, tm7, tm8, tm9, ncol=2)
 
 
 t_sig
