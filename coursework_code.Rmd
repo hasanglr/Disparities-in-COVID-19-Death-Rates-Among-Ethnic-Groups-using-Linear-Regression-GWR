@@ -1,5 +1,3 @@
-
-
 ## Disparities in COVID-19 Death Rates Among Ethnic Groups in England and Wales
 
 ```{r}
@@ -121,9 +119,7 @@ covid1_group<- covid %>%
 
 ```
 
-
 #### 1.3. Population Data of Ethnic Groups
-
 
 ```{r}
 
@@ -163,6 +159,8 @@ ethnic$white = ethnic$white_english_welsh_scottish_northern_irish_or_british_per
 ethnic$other = ethnic$other_ethnic_group_any_other_ethnic_group_percent + ethnic$other_ethnic_group_arab_percent
 
  ethnic <- ethnic %>%
+   
+ ##selecting necessary columns
 
  dplyr::select("area_code",
                 "area_name",
@@ -172,12 +170,13 @@ ethnic$other = ethnic$other_ethnic_group_any_other_ethnic_group_percent + ethnic
                 "white",
                 "other") %>%
    
+   ##rename the local authority code to standardise
+   
    rename(la_code = area_code)
 
 ```
 
 #### 1.4. Population Density Data
-
 
 ```{r}
 
@@ -207,9 +206,7 @@ population_den<-read_excel(here::here("data",
 
 ```
 
-
 #### 1.5. Population of people 65 or over
-
 
 ```{r}
 
@@ -270,7 +267,6 @@ covid2_local_joined <- local %>%
 
 #### 1.7. Ultimate Dataset for Analysis
 
-
 ```{r}
 
 #exclude missing data before creating spatial weight matrix to use it in spatial autocorrelation and regression models
@@ -281,9 +277,7 @@ covid3_analysis <-covid2_local_joined %>%
 
 ```
 
-
 ### 2. Data Exploration and Visualisation
-
 
 #### 2.1. The map of COVID-19 Death Rates in England
 
@@ -293,6 +287,8 @@ covid3_analysis <-covid2_local_joined %>%
 
 tm_shape(covid2_local_joined) +
   
+  #choosing COVID-19 Death rates as filling column, map style is natural break
+  
   tm_fill("deaths_per",
           style="jenks",
           n= 5, 
@@ -300,23 +296,35 @@ tm_shape(covid2_local_joined) +
           title= "Average Deaths per 100.000", 
           labels=c("75 to 145", "146 to 189", "190 to 230", "231 to 275", "276 to 370"))  +
   
+  ##local authority boundaries
+  
   tm_borders(lwd = 0.1)+
   
   tm_shape(covid3_analysis)+
   
   tm_polygons(alpha=0) +
   
+  ##wales boundary
+  
   tm_shape(wales) +
   tm_borders(col = "black", lwd=1.6)+
+  
+  ##north arrow
   
   tm_compass(north=0,
              position=c(0.85,0.70),size=1.5, show.labels= 0)+
   
+  ##scale bar
+  
   tm_scale_bar(position = c(0.67,0.02)) +
   
-tm_layout(legend.position = c(0.02,0.63),
+  ##legend position
+  
+  tm_layout(legend.position = c(0.02,0.63),
           legend.title.size = 0.7,
           legend.text.size = 0.55) +
+  
+  ##title
   
    tm_credits("COVID-19 Death Rates Distribution (Natural Breaks)", position=c(0,0.94), size=0.8) 
 
@@ -334,7 +342,7 @@ centroids<- covid3_analysis%>%
   st_geometry()
 
 
-#find four nearest neighbours
+#find four k-nearest neighbours
 knn <-centroids %>%
   knearneigh(., k=4)
 
@@ -350,6 +358,7 @@ knn3_weight <- knn2 %>%
 
 moran.test(covid3_analysis$deaths_per, knn3_weight)
 ```
+
 #### 2.3. Local Indıcators of Spatial Autocorrelation (LISA)
 
 ```{r}
@@ -404,7 +413,6 @@ covid5_analysis_sf$quad_sig <- ifelse(covid5_analysis_sf$deaths_per_scale > 0 &
 
 Create a dataset including missing local authorities for mapping
 
-
 ```{r}
 
 #convert the sf into data frame
@@ -431,7 +439,9 @@ covid7_mapping_lisa <- covid2_local_joined %>%
 
 #mapping the covid-19 death rate across england
 
-map1_distribution <- tm_shape(covid7_mapping_lisa) +
+map1_distribution <- tm_shape(covid2_local_joined) +
+  
+  #choosing COVID-19 Death rates as filling column, map style is natural break
   
   tm_fill("deaths_per",
           style="jenks",
@@ -440,48 +450,76 @@ map1_distribution <- tm_shape(covid7_mapping_lisa) +
           title= "Average Deaths per 100.000", 
           labels=c("75 to 145", "146 to 189", "190 to 230", "231 to 275", "276 to 370"))  +
   
+  ##local authority boundaries
+  
   tm_borders(lwd = 0.1)+
   
   tm_shape(covid3_analysis)+
   
   tm_polygons(alpha=0) +
   
+  ##wales boundary
+  
   tm_shape(wales) +
   tm_borders(col = "black", lwd=1.6)+
+  
+  ##north arrow
   
   tm_compass(north=0,
              position=c(0.85,0.70),size=1.5, show.labels= 0)+
   
+  ##scale bar
+  
   tm_scale_bar(position = c(0.67,0.02)) +
   
-tm_layout(legend.position = c(0.02,0.63),
+  ##legend position
+  
+  tm_layout(legend.position = c(0.02,0.63),
           legend.title.size = 0.7,
           legend.text.size = 0.55) +
   
-   tm_credits("(a) COVID-19 Death Rates Distribution (Natural Breaks)", position=c(0,0.94), size=0.8) 
+  ##title
+  
+   tm_credits("COVID-19 Death Rates Distribution (Natural Breaks)", position=c(0,0.94), size=0.8) 
 
 
 # map only the statistically significant results here
 
 map2_hotspot <- tm_shape(covid7_mapping_lisa) +
-    tm_fill(col = 'quad_sig', 
+  
+  tm_fill(col = 'quad_sig', 
             palette = c("#e34a33", "#bdd7e7", "white",  "#2c7fb8"),
             title= "Clusters") +
-    tm_borders(lwd = 0.1)+
   
+  tm_borders(lwd = 0.1)+
+  
+    ##local authority boundaries
+
 tm_shape(covid3_analysis)+
+  
   tm_polygons(alpha=0) +
   
-  tm_shape(wales) +
+    ##wales boundary
+  
+tm_shape(wales) +
+  
   tm_borders(col = "black", lwd=1.6)+
+  
+  ##north arrow
   
   tm_compass(north=0, position=c(0.85,0.70),size=1.5, show.labels= 0)+
   
+  ##scale bar
+  
   tm_scale_bar(position = c(0.67,0.02)) +
   
-tm_layout(legend.position = c(0.02,0.63), legend.title.size = 0.7, legend.text.size = 0.55)+
+  ##legend position
   
- tm_credits("(b) Significant Clusters (LISA) of COVID-19 Death", position=c(0,0.94), size=0.8) 
+  tm_layout(legend.position = c(0.02,0.63), legend.title.size = 0.7, legend.text.size = 0.55)+
+  
+  ##title
+  
+  tm_credits("(b) Significant Clusters (LISA) of COVID-19 Death", position=c(0,0.94), size=0.8) 
 
 figure1=tmap_arrange(map1_distribution, map2_hotspot, ncol=2)
 
@@ -493,9 +531,7 @@ tmap_save(tm=figure1)
 
 ```
 
-
 #### 2.5. Normality of Variables
-
 
 ```{r}
 
@@ -506,7 +542,7 @@ hist_deaths<- ggplot(covid3_analysis, aes(x=deaths_per)) +
   geom_histogram(binwidth = 10, color="white",fill="#e34a33", alpha=0.6)+
   geom_vline(data=covid3_analysis, aes(xintercept=mean(deaths_per)),
              linetype="dashed", color="#045a8d")+
-  labs(title="COVID-19 Deaths",x="Deaths per 100.000 population", y = "Count", size=10)+
+  labs(title="a) COVID-19 Deaths",x="Deaths per 100.000 population", y = "Count", size=10)+
   theme_classic()+
   theme(axis.title.x = element_text(size = 9))+
   theme(axis.title.y = element_text(size = 9))+
@@ -521,7 +557,7 @@ hist_asian<- ggplot(covid3_analysis, aes(x=asian)) +
   geom_histogram(binwidth = 2, color="white",fill="#69b3a2", alpha=0.6)+
   geom_vline(data=covid3_analysis, aes(xintercept=mean(asian)),
              linetype="dashed", color="#045a8d")+
-  labs(title="Asian Population",x="Population Percentage", y = "Count")+
+  labs(title="d) Asian Population",x="Population Percentage", y = "Count")+
   theme_classic()+
   theme(axis.title.x = element_text(size = 9))+
   theme(axis.title.y = element_text(size = 9))+
@@ -536,7 +572,7 @@ hist_black<- ggplot(covid3_analysis, aes(x=black)) +
   geom_histogram(binwidth = 1, color="white",fill="#E69F00", alpha=0.6)+
   geom_vline(data=covid3_analysis, aes(xintercept=mean(black)),
              linetype="dashed", color="#045a8d")+
-  labs(title="Black Population",x="Population Percentage", y = "Count")+
+  labs(title="e) Black Population",x="Population Percentage", y = "Count")+
   theme_classic()+
   theme(axis.title.x = element_text(size = 9))+
   theme(axis.title.y = element_text(size = 9))+
@@ -550,7 +586,7 @@ hist_mixed<- ggplot(covid3_analysis, aes(x=mixed_multiple)) +
   geom_histogram(binwidth = 0.3, color="white",fill="#56B4E9", alpha=0.6)+
   geom_vline(data=covid3_analysis, aes(xintercept=mean(mixed_multiple)),
              linetype="dashed", color="#045a8d")+
-  labs(title="Mixed Population",x="Population Percentage", y = "Count")+
+  labs(title="f) Mixed Population",x="Population Percentage", y = "Count")+
   theme_classic()+
   theme(axis.title.x = element_text(size = 9))+
   theme(axis.title.y = element_text(size = 9))+
@@ -564,7 +600,7 @@ hist_white<- ggplot(covid3_analysis, aes(x=white)) +
   geom_histogram(binwidth = 3, color="white",fill="#969696", alpha=0.6)+
   geom_vline(data=covid3_analysis, aes(xintercept=mean(white)),
              linetype="dashed", color="#045a8d")+
-  labs(title="White Population",x="Population Percentage", y = "Count")+
+  labs(title="g) White Population",x="Population Percentage", y = "Count")+
   theme_classic()+
   theme(axis.title.x = element_text(size = 9))+
   theme(axis.title.y = element_text(size = 9))+
@@ -578,7 +614,7 @@ hist_popden<- ggplot(covid3_analysis, aes(x=pop_density)) +
   geom_histogram(binwidth = 500, color="white",fill="#fc8d59", alpha=0.6)+
   geom_vline(data=covid3_analysis, aes(xintercept=mean(pop_density)),
              linetype="dashed", color="#045a8d")+
-  labs(title="Population Density",x="Population per kilometer", y = "Count")+
+  labs(title="c) Population Density",x="Population per kilometer", y = "Count")+
   theme_classic()+
   theme(axis.title.x = element_text(size = 9))+
   theme(axis.title.y = element_text(size = 9))+
@@ -592,7 +628,7 @@ hist_pop65<- ggplot(covid3_analysis, aes(x=pop_65over_per)) +
   geom_histogram(binwidth = 1, color="white",fill="#404080", alpha=0.6)+
   geom_vline(data=covid3_analysis, aes(xintercept=mean(pop_65over_per)),
              linetype="dashed", color="#045a8d")+
-  labs(title="65+ Percentage ",x="Population Percentage", y = "Count")+
+  labs(title="b) 65+ Percentage",x="Population Percentage", y = "Count")+
   theme_classic()+
   theme(axis.title.x = element_text(size = 9))+
   theme(axis.title.y = element_text(size = 9))+
@@ -600,10 +636,23 @@ hist_pop65<- ggplot(covid3_analysis, aes(x=pop_65over_per)) +
   theme(plot.title = element_text(size = 11))+
   theme(plot.title = element_text(hjust = 0.5))
 
+ #create a histogram of the other populations
+
+hist_ot<- ggplot(covid3_analysis, aes(x=other)) + 
+  geom_histogram(binwidth = 0.6, color="white",fill="#3B47E7", alpha=0.6)+
+  geom_vline(data=covid3_analysis, aes(xintercept=mean(other)),
+             linetype="dashed", color="#045a8d")+
+  labs(title="h) Other Ethnic Groups ",x="Population Percentage", y = "Count")+
+  theme_classic()+
+  theme(axis.title.x = element_text(size = 9))+
+  theme(axis.title.y = element_text(size = 9))+
+  theme(plot.title = element_text(face = "bold"))+
+  theme(plot.title = element_text(size = 11))+
+  theme(plot.title = element_text(hjust = 0.5))
 
 #plot histograms
 
-grid.arrange(hist_deaths,hist_pop65, hist_asian,hist_black, hist_mixed, hist_white, hist_popden,
+histograms <- grid.arrange(hist_deaths,hist_pop65, hist_popden,hist_asian,hist_black, hist_mixed, hist_white, hist_ot,
           ncol = 3, nrow = 3)
 
 
@@ -620,18 +669,21 @@ covid3_analysis$black[covid3_analysis$la_code =="E07000046"] <- 0.1
 
 ```
 
-
 ### 2.5.1. Shapiro-Wilk Test for Dependent Variable and Independent Variables
 
 ```{r}
+
+#shapiro wilk - covid19 death rates
 
 shapiro.test(covid3_analysis$deaths_per)
 
 
 ```
 
-
 ```{r}
+
+#shapiro wilk - population 65 over
+
 
 shapiro.test(covid3_analysis$pop_65over_per)
 
@@ -640,6 +692,9 @@ shapiro.test(covid3_analysis$pop_65over_per)
 
 ```{r}
 
+#shapiro wilk - asian population
+
+
 shapiro.test(covid3_analysis$asian)
 
 
@@ -647,13 +702,16 @@ shapiro.test(covid3_analysis$asian)
 
 ```{r}
 
+#shapiro wilk - black population
+
 shapiro.test(covid3_analysis$black)
 
 
 ```
 
-
 ```{r}
+
+#shapiro wilk - white population
 
 shapiro.test(covid3_analysis$white)
 
@@ -662,12 +720,17 @@ shapiro.test(covid3_analysis$white)
 
 ```{r}
 
+#shapiro wilk - other population
+
 shapiro.test(covid3_analysis$other)
 
 
 ```
 
 ```{r}
+
+#shapiro wilk - mixed population
+
 
 shapiro.test(covid3_analysis$mixed_multiple)
 
@@ -676,20 +739,21 @@ shapiro.test(covid3_analysis$mixed_multiple)
 
 ```{r}
 
+#shapiro wilk - population density
+
+
 shapiro.test(covid3_analysis$pop_density)
 
 
 ```
 
-#### 2.6.  Correlation Matrix
+#### 2.6. Correlation Matrix
 
-**Correlation map code was adapted from Geeks for Geeks retrieved from
-<https://www.geeksforgeeks.org/how-to-create-correlation-heatmap-in-r/>
+\*\*Correlation map code was adapted from Geeks for Geeks retrieved from <https://www.geeksforgeeks.org/how-to-create-correlation-heatmap-in-r/>
 
-https://stackoverflow.com/questions/63459483/customized-correlation-plot-color
+<https://stackoverflow.com/questions/63459483/customized-correlation-plot-color>
 
-Correlation map is created to understand the correlation between the
-variable since it can affect our model.
+Correlation map is created to understand the correlation between the variable since it can affect our model.
 
 ```{r}
 
@@ -759,7 +823,7 @@ geom_tile() +
 
 ```
 
-#### 2.7.  Pearson Correlation Test
+#### 2.7. Pearson Correlation Test
 
 ```{r}
 
@@ -771,7 +835,6 @@ test
 
 ```
 
-
 ```{r}
 
 #pearson correlation test
@@ -781,9 +844,9 @@ test
 
 ```
 
-#### 2.8.  Correlogram
+#### 2.8. Correlogram
 
-**Correlogram code was adapted from Chapter 9 Geographically Weighted Regression retrieved from https://gdsl-ul.github.io/san/geographically-weighted-regression.html
+\*\*Correlogram code was adapted from Chapter 9 Geographically Weighted Regression retrieved from <https://gdsl-ul.github.io/san/geographically-weighted-regression.html>
 
 ```{r}
 
@@ -807,13 +870,13 @@ corrplot::corrplot(cormat, type="lower",
 
 ```
 
-
 ### 3. Analysis
 
 #### 3.1. Linear Regression
 
-
 ```{r}
+
+#lr model fitting with log transformation on independent variables
 
 lr_model <- lm(covid3_analysis$deaths_per ~ 
      log(covid3_analysis$asian) + log(covid3_analysis$black) + log(covid3_analysis$mixed_multiple) +log(covid3_analysis$white)+ log(covid3_analysis$pop_density) ++ log(covid3_analysis$other)+ log(covid3_analysis$pop_65over_per),data=covid3_analysis)
@@ -822,6 +885,8 @@ lr_model <- lm(covid3_analysis$deaths_per ~
 
 ```{r}
 
+#have a look at the summary of lr
+
 summary(lr_model)
 
 
@@ -829,38 +894,37 @@ summary(lr_model)
 
 #### 3.1.1. Variance Inflation Factor -Multicollinearity
 
-The variance inflation factor can be calculated to check for
-multicollinearity considering possibility of redundancy between the
-variables.
+The variance inflation factor can be calculated to check for multicollinearity considering possibility of redundancy between the variables.
 
-By utilising the Variance Inflation Factor (VIF) to make sure the
-independent variables are not correlated with each other and that their
-VIF is less than 10, you may determine whether there is
-multicollinearity among the independent variables. If it is greater than
-10, the variables must be removed from the model and the regression must
-be repeated without the removed variables.
-
+By utilising the Variance Inflation Factor (VIF) to make sure the independent variables are not correlated with each other and that their VIF is less than 10, you may determine whether there is multicollinearity among the independent variables. If it is greater than 10, the variables must be removed from the model and the regression must be repeated without the removed variables.
 
 ```{r}
+
+#vif check
 
 vif(lr_model)
 
 ```
 
-
 #### 3.1.2. Normality of LR Residuals
-
 
 ```{r}
 
+#creating a data frame from lr_model
+
 model_data <- lr_model %>%
   broom::augment(., covid3_analysis)
+
+#creating a spatial data, including LR results
 
 covid10_lr<- model_data %>%
   mutate(model2resids = residuals(lr_model))
 
 ```
+
 ```{r}
+
+#histogram of residuals of LR
 
 ggplot(covid10_lr, aes(x=model2resids)) + 
   geom_histogram(binwidth = 10, color="white",fill="#e34a33", alpha=0.6)+
@@ -876,7 +940,6 @@ ggplot(covid10_lr, aes(x=model2resids)) +
 
 ```
 
-
 #### 3.1.3. Shapiro-Wilk test for LR Residuals
 
 ```{r}
@@ -885,34 +948,49 @@ shapiro.test(covid10_lr$model2resids)
 
 
 ```
- 
+
 #### 3.1.4. Mapping LR residuals
- 
+
 ```{r}
+
+#converting datasets, incuding LR results into sf to map residuals
 
 covid10_lr <- st_as_sf(covid10_lr)
 
-
+#mapping
 tm_shape(covid10_lr) +
+
   tm_fill("model2resids", style = "jenks", midpoint = 0, palette = "-RdBu",title= "Residuals") +
     
   tm_borders(lwd = 0.1)+
   
-  tm_shape(covid3_analysis)+
+  ##local authority boundaries
+  
+tm_shape(covid3_analysis)+
   
   tm_polygons(alpha=0) +
   
-  tm_shape(wales) +
+  ##wales boundary
+  
+tm_shape(wales) +
+  
   tm_borders(col = "black", lwd=1.6)+
   
-tm_compass(north=0, position=c(0.85,0.80))+
-tm_scale_bar(position = c("left", "bottom")) +
-tm_layout("The LR Residuals Across England and Wales",frame = FALSE,legend.position = c("left","bottom"), legend.title.size = 0.5, legend.text.size = 0.5)
+  ##north arrow
+  
+  tm_compass(north=0, position=c(0.85,0.80))+
+  
+  ##scale bar
+  
+  tm_scale_bar(position = c("left", "bottom")) +
+  
+  ##layout,ititle and legend position
+  
+  tm_layout("The LR Residuals Across England and Wales",frame = FALSE,legend.position = c("left","bottom"), legend.title.size = 0.5, legend.text.size = 0.5)
 
 ```
 
 #### 3.1.5. Spatial Autocorrelation of LR Residuals
-
 
 ```{r}
 
@@ -925,12 +1003,15 @@ tm_layout("The LR Residuals Across England and Wales",frame = FALSE,legend.posit
 
 #### 3.2. Spatial Errors Model
 
-
 ```{r}
+
+#spatial error model
 
 modelSER <- errorsarlm(covid3_analysis$deaths_per ~ 
      log(covid3_analysis$asian) + log(covid3_analysis$black) + log(covid3_analysis$mixed_multiple) +log(covid3_analysis$white)+ log(covid3_analysis$pop_density) ++ log(covid3_analysis$other)+ log(covid3_analysis$pop_65over_per), data=covid3_analysis, knn3_weight, 
   method = "eigen")
+
+#have a look the summary of SEM
 
 summary(modelSER)
 
@@ -938,8 +1019,9 @@ summary(modelSER)
 
 #### 3.2.1 Spatial Autocorrelation of SE Residuals
 
-
 ```{r}
+
+#create a new dataset for spatial error model results
 
 modelSER_result <- covid3_analysis
   
@@ -947,11 +1029,9 @@ modelSER_result <- covid3_analysis
 
 modelSER_result$RESID_SER <- modelSER$residuals
 
-# use Moran's I test 
+# apply global Moran's I test on redisuals of SEM
 
 moran.test(modelSER_result$RESID_SER, knn3_weight)
-
-
 
 
 ```
@@ -960,14 +1040,13 @@ moran.test(modelSER_result$RESID_SER, knn3_weight)
 
 ```{r}
 
-# insert coordinates into a dataframe
+# insert centroid coordinates into a dataframe
 
 centroids2 <- st_centroid(covid10_lr)
 
 centroids2<- cbind(centroids2, st_coordinates(centroids2))
 
 ```
-
 
 #### 3.3.1 Optimal Bandwidth
 
@@ -1002,15 +1081,18 @@ gwr.model <- gwr(covid3_analysis$deaths_per ~
 
 gwr.model
 
+# appending GWR results to new data frame
 
 gwr.data <- as.data.frame(gwr.model$SDF)
 
 
 ```
 
-Retriving coefficients, Local R2 And Standardised Residuals
+Retrieving coefficients, Local R2 And Standardised Residuals
 
 ```{r}
+
+#new data for GWR results
 
 gwr_result <- covid3_analysis
 
@@ -1024,7 +1106,6 @@ gwr_result$Coefother <- gwr.data[,"log.covid3_analysis.other."]
 
 gwr_result$Coefpop_density <- gwr.data[,"log.covid3_analysis.pop_density."]
 gwr_result$Coefpop_65over_per <- gwr.data[,"log.covid3_analysis.pop_65over_per."]
-
 
 
 # insert standard errors into our spatial result data
@@ -1074,8 +1155,6 @@ gwr_result$tstat_population_den <- gwr_result$Coefpop_density / gwr_result$SEpop
 gwr_result$tstat_population_65over_per<- gwr_result$Coefpop_65over_per / gwr_result$SEpop_65over_per
 
 
-
-
 # create significance column with: "Reduction: Significant", "Not Significant", "Increase: Significant" 
 
 gwr_result$significant_asian <- cut(gwr_result$tstat_asian,
@@ -1115,8 +1194,11 @@ Join spatial data has missing values and GWR results for mapping
 
 ```{r}
 
+#first convert into df to use left_join function
 
 gwr_result_df<- as.data.frame(gwr_result)
+
+#join
 
 gwr_result2 <- covid2_local_joined %>%
   left_join(.,
@@ -1124,19 +1206,18 @@ gwr_result2 <- covid2_local_joined %>%
 
 ```
 
-
 #### 3.3.3. Mapping Local R2 of GWR
 
 ```{r}
 
 # map local R2 to evaluate model performance
 
-tm_shape(gwr_result2) +
+localR2_map <- tm_shape(gwr_result2) +
   tm_fill("localR2",
           style="jenks",
           n= 5, 
           palette = "YlGnBu",
-          title= "Residuals", 
+          title= "R2", 
           labels=c("41% to 55%", "56 to 62%", "63% to 68%", "69% to 74%", "75% to 83%"))+
   
   tm_borders(lwd = 0.1)+
@@ -1154,13 +1235,27 @@ tm_shape(wales) +
   tm_scale_bar(position = c(0.67,0.02)) +
   
 tm_layout(legend.position = c(0.02,0.63),
-          legend.title.size = 0.7,
-          legend.text.size = 0.55) +
+          legend.title.size = 0.9,
+          legend.text.size = 0.8) +
   
-   tm_credits("The Local R2 OF GWR Across England and Wales)", position=c(0,0.94), size=0.8) 
+   tm_credits("The Local R2 of GWR Across England and Wales)", position=c(0,0.94), size=1.2) 
+
+localR2_map
 
 ```
 
+```{r}
+
+tmap_save(tm = localR2_map)
+
+```
+
+```{r}
+
+moran.test(gwr_result$localR2, knn3_weight)
+
+
+```
 
 #### 3.3.4. Mapping Local Coefficients of GWR
 
@@ -1171,7 +1266,8 @@ tm_layout(legend.position = c(0.02,0.63),
 tmap_mode("plot")
 
 
-# plot each map
+#asian population local coefficients
+
 tm1 <- tm_shape(gwr_result2) + 
   
   tm_fill("Coefasian", title = " GWR Coefficients", style = "jenks", midpoint = 0, palette = "RdBu") +
@@ -1181,6 +1277,7 @@ tm_shape(wales) +
   tm_layout(frame=FALSE, legend.position = c("left","bottom"),  legend.title.size=0.5,   legend.text.size = 0.4)+
   tm_credits("(a) Asian Population Percentage", position=c(0,0.75), size=1)
 
+#black population local coefficients
 
 tm2 <- tm_shape(gwr_result2) + 
   
@@ -1194,7 +1291,7 @@ tm_shape(wales) +
   
   tm_compass(north=0, position=c(0.85,0.65))
 
-
+#mixed population local coefficients
 
 tm3 <- tm_shape(gwr_result2) + 
   
@@ -1205,6 +1302,7 @@ tm_shape(wales) +
   tm_layout(frame=FALSE, legend.position = c("left","bottom"),  legend.title.size=0.5,   legend.text.size = 0.4)+
   tm_credits("(c) Mixed Population Percentage", position=c(0,0.75), size=1)
 
+#white population local coefficients
 
 tm4 <- tm_shape(gwr_result2) + 
   
@@ -1216,6 +1314,7 @@ tm_shape(wales) +
   tm_credits("(d) White Population Percentage", position=c(0,0.75), size=1) +
     tm_scale_bar(position = c("right", "bottom")) 
 
+#other population local coefficients
 
 tm5 <- tm_shape(gwr_result2) + 
   
@@ -1227,6 +1326,7 @@ tm_shape(wales) +
   tm_credits("(d) Other Ethnic Population Percentage", position=c(0,0.75), size=1) +
     tm_scale_bar(position = c("right", "bottom")) 
 
+#population density local coefficients
 
 tm6 <- tm_shape(gwr_result2) + 
   
@@ -1237,6 +1337,8 @@ tm_shape(wales) +
   tm_layout(frame=FALSE, legend.position = c("left","bottom"),  legend.title.size=0.5,   legend.text.size = 0.4)+
   tm_credits("(d) Population Density per km2", position=c(0,0.75), size=1) +
     tm_scale_bar(position = c("right", "bottom")) 
+
+#population 65 over density local coefficients
 
 
 tm7<- tm_shape(gwr_result2) + 
@@ -1257,8 +1359,7 @@ t
 
 ```
 
-#### 3.3.5. Mapping Significance Level of Coefficents 
-
+#### 3.3.5. Mapping Significance Level of Coefficents
 
 ```{r}
 
@@ -1286,6 +1387,9 @@ map10_asian <-  tm_shape(gwr_result2) +
  tm_credits("(a) Asian %", position=c(0,0.93), size=0.8) 
 
 
+
+# black population 
+
 map11_black <-  tm_shape(gwr_result2) + 
   tm_fill("significant_black", title = "Legend", style = "cat", labels=c("Signi. Reduction", "Not Significant", "Signi. Increase"), palette = c("#e34a33", "white", "#2c7fb8")) +
   tm_shape(covid3_analysis)+
@@ -1303,6 +1407,8 @@ map11_black <-  tm_shape(gwr_result2) +
  tm_credits("(b) Black %", position=c(0,0.93), size=0.8) 
 
 
+#white population
+
 map12_white <-  tm_shape(gwr_result2) + 
   tm_fill("significant_white", title = "Legend", style = "cat", labels=c("Signi. Reduction", "Not Significant", "Signi. Increase"), palette = c("#e34a33", "white", "#2c7fb8")) +
   tm_shape(covid3_analysis)+
@@ -1319,6 +1425,7 @@ map12_white <-  tm_shape(gwr_result2) +
   
  tm_credits("(c) White %", position=c(0,0.93), size=0.8) 
 
+#mixed population
 
 map13_mixed <-  tm_shape(gwr_result2) + 
   tm_fill("significant_mixed", title = "Legend", style = "cat", labels=c("Signi. Reduction", "Not Significant", "Signi. Increase"), palette = c("#e34a33", "white", "#2c7fb8")) +
@@ -1338,6 +1445,8 @@ map13_mixed <-  tm_shape(gwr_result2) +
  tm_credits("(d) Mixed or Multiple %", position=c(0,0.93), size=0.8) 
 
 
+#population density
+
 map14_pop_density <-  tm_shape(gwr_result2) + 
   tm_fill("significant_population_den", title = "Legend", style = "cat", labels=c("Signi. Reduction", "Not Significant", "Signi. Increase"), palette = c("#e34a33", "white", "#2c7fb8")) +
   tm_shape(covid3_analysis)+
@@ -1354,6 +1463,8 @@ map14_pop_density <-  tm_shape(gwr_result2) +
   
  tm_credits("(e) Population Density", position=c(0,0.93), size=0.8) 
 
+
+#population 65 over
 
 map15_population_65over <-  tm_shape(gwr_result2) + 
   tm_fill("significant_population_65over", title = "Legend", style = "cat", labels=c("Signi. Reduction", "Not Significant", "Signi. Increase"), palette = c("#e34a33", "white", "#2c7fb8")) +
@@ -1383,7 +1494,6 @@ tmap_save(tm=figure3)
 ```
 
 #### 3.3.6. Normality of Standardised Residuals of GWR
-
 
 ```{r}
 
@@ -1420,7 +1530,7 @@ shapiro.test(gwr_result$gwr.e)
 ```{r}
 
 
-#apply global moran's I
+#apply global moran's I on residuals of GWR
 
   moran.test(gwr_result$gwr.e, knn3_weight)
 
@@ -1428,7 +1538,6 @@ shapiro.test(gwr_result$gwr.e)
 ```
 
 #### 3.3.8. Mapping the residuals of GWR
-
 
 ```{r}
 
@@ -1438,9 +1547,13 @@ tm_compass(north=0, position=c(0.85,0.80))+
     
   tm_borders(lwd = 0.1)+
   
+  ##local authority boundaries
+  
   tm_shape(covid3_analysis)+
   
   tm_polygons(alpha=0) +
+  
+  ##wales boundary
   
   tm_shape(wales) +
   tm_borders(col = "black", lwd=1.6)+
@@ -1450,4 +1563,3 @@ tm_layout("The LR Residuals Across England and Wales",frame = FALSE,legend.posit
 
 
 ```
-
